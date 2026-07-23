@@ -18,6 +18,7 @@ from .builtin import (
     PytestSkill,
     ReadSourceSkill,
     ReadTargetSkill,
+    SubstituteSkill,
     VerifySkill,
 )
 from .workflow import Workflow, WorkflowStep
@@ -41,5 +42,6 @@ __all__ = [
     "ProfileSkill",
     "GitPullRequestSkill",
     "PytestSkill",
+    "SubstituteSkill",
     "MapVerifyCodegenWorkflow",
 ]

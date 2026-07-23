@@ -22,6 +22,7 @@ from ..codegen import generate_for
 from ..config import AuditColumn, MigrationConfig
 from ..connectors.base import TableSchema
 from ..registry import build_connector
+from ..substitution import SubstitutionEngine
 from .base import Skill, SkillContext, SkillResult, register_skill
 from .workflow import Workflow, WorkflowStep
 
@@ -446,6 +447,34 @@ class PytestSkill(Skill):
                 "passed": result.returncode == 0,
             },
             reasoning=["pytest run completed"],
+        )
+
+
+@register_skill
+class SubstituteSkill(Skill):
+    """Apply token substitutions (${env:VAR}, {token}) to a config dict or string."""
+
+    name = "substitute"
+    description = "Substitute tokens and optional prefix/suffix rules into configuration data."
+
+    def run(self, context: SkillContext) -> SkillResult:
+        inputs = context.inputs
+        data = inputs.get("data")
+        if data is None:
+            return SkillResult.failed("substitute skill requires a `data` input")
+
+        engine = SubstitutionEngine(
+            tokens=inputs.get("tokens", {}),
+            prefix_suffix=inputs.get("prefix_suffix", {}),
+        )
+        try:
+            result = engine.substitute(data)
+        except Exception as exc:  # noqa: BLE001
+            return SkillResult.failed(f"substitution failed: {exc}")
+
+        return SkillResult(
+            outputs={"data": result},
+            reasoning=["applied token substitutions"],
         )
 
 

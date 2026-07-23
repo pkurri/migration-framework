@@ -342,6 +342,8 @@ connector:
   GitHub pull request for human review (HITL).
 - `test-generated` - run a generated code module against a generated `pytest`
   suite in a temporary directory.
+- `substitute` - apply token substitutions (`${env:VAR}`, `{token}`) and
+  prefix/suffix rules to any configuration dict.
 
 Profile a table:
 
@@ -370,6 +372,27 @@ migrate skill create-pull-request \
     "repo_name": "..."
   }'
 ```
+
+### Config overrides and substitutions
+
+`MigrationConfig.load` supports sparse overrides and token substitution
+(modelled after Lakeflow config layering):
+
+```python
+from migration_framework.config import MigrationConfig
+
+config = MigrationConfig.load(
+    "orders_demo.yaml",
+    overrides_path="orders_demo.prod.yaml",  # sparse YAML/JSON merged on top
+    substitutions={"env": "prod", "layer": "silver"},  # or SubstitutionEngine
+)
+```
+
+Substitution syntax in YAML/JSON values:
+
+- `${env:VAR}` or `{env:VAR}` - environment variable
+- `{token}` - value from the `substitutions` dict
+- prefix/suffix rules keyed by config key name (e.g. `table` -> `silver_`)
 
 ## Config reference
 

@@ -8,10 +8,13 @@ and `connection` values change.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
 import yaml
+
+from .substitution import SubstitutionEngine, deep_merge
 
 
 @dataclass
@@ -140,9 +143,28 @@ class MigrationConfig:
         )
 
     @classmethod
-    def load(cls, path: str) -> "MigrationConfig":
+    def load(
+        cls,
+        path: str,
+        overrides_path: str | None = None,
+        substitutions: dict[str, Any] | SubstitutionEngine | None = None,
+    ) -> "MigrationConfig":
         with open(path, "r") as f:
-            return cls.from_dict(yaml.safe_load(f))
+            data = yaml.safe_load(f)
+
+        if overrides_path:
+            with open(overrides_path, "r") as f:
+                if overrides_path.endswith((".yaml", ".yml")):
+                    override = yaml.safe_load(f)
+                else:
+                    override = json.load(f)
+            data = deep_merge(data, override)
+
+        if substitutions is not None:
+            engine = substitutions if isinstance(substitutions, SubstitutionEngine) else SubstitutionEngine(tokens=substitutions)
+            data = engine.substitute(data)
+
+        return cls.from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
         import dataclasses
