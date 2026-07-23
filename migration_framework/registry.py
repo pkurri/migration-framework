@@ -10,15 +10,13 @@ from __future__ import annotations
 from typing import Any
 
 from .connectors.base import Connector
+from .connectors.dbapi_connector import DatabricksConnector, SnowflakeConnector
 from .connectors.sqlalchemy_connector import SQLAlchemyConnector
 
 CONNECTOR_REGISTRY: dict[str, type[Connector]] = {
     "sqlalchemy": SQLAlchemyConnector,
-    # Any SQLAlchemy-dialect database (Postgres, MySQL, SQLite, Snowflake via
-    # `snowflake-sqlalchemy`, Databricks via `databricks-sqlalchemy`, ...)
-    # is reachable through the one connector above with a different
-    # connection string - register dedicated connectors here only when a
-    # system doesn't speak SQL at all (an API, a message queue, flat files).
+    "snowflake": SnowflakeConnector,
+    "databricks": DatabricksConnector,
 }
 
 

@@ -82,7 +82,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
     )
 
     # Generate the runnable load script for this specific source/target pair.
-    generated = generate_for(config)
+    generated = generate_for(config, config_path=args.out)
     generated_dir = os.path.dirname(args.out)
     if generated_dir:
         os.makedirs(generated_dir, exist_ok=True)

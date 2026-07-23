@@ -176,6 +176,7 @@ flowchart TD
 | --- | --- |
 | `connectors/base.py` | The `Connector` interface - `get_schema`, `read_rows`, `write_rows`, `row_count`. Anything that implements these four can be a source or a target. |
 | `connectors/sqlalchemy_connector.py` | One connector covering any SQLAlchemy-dialect database. This is what makes "any migration" true today without writing per-database code. |
+| `connectors/dbapi_connector.py` | Native connectors for Snowflake (`snowflake-connector-python`) and Databricks (`databricks-sql-connector`). Install with `pip install migration-framework[snowflake]` or `[databricks]`. |
 | `registry.py` | Maps a `connector: <name>` string in config to a connector class. Add a new system by registering one class here. |
 | `agents/` | Agent-based discovery and mapping. `DiscoveryWorkflow` orchestrates `SourceSchemaAgent`, `TargetSchemaAgent`, `LocalMappingAgent`, and `LocalVerifierAgent`. |
 | `agents/mapping_agent.py` | `LocalMappingAgent` scores every (source column, target column) pair on name similarity, type compatibility, and sample-data shape; greedily assigns confident, unambiguous matches; flags the rest. Pure local reasoning, no external service. |
@@ -187,6 +188,46 @@ flowchart TD
 | `config.py` | The `MigrationConfig` shape and its YAML load/save - what `discover` produces and `run` consumes. |
 | `engine.py` | Runs an actual migration from a finished config: joins/filters, casts/defaults/derived rules, audit columns, validation, the write, and row-count reconciliation. |
 | `cli.py` | `migrate --source X:tbl --target Y:tbl`, `migrate discover`, `migrate run`, `migrate skill`, and `migrate workflow` - the one interface any orchestrator calls. |
+| `mcp_server.py` | `migrate-mcp` MCP server exposing skills/workflows as tools for Claude, Cursor, and other MCP hosts. |
+
+## Databricks and Snowflake
+
+The framework now ships native connectors and per-pair codegen for Databricks
+and Snowflake, covering every source/target combination:
+
+- **Same warehouse:** `snowflake -> snowflake` emits Snowpark, `databricks -> databricks` emits PySpark/Delta, `sqlalchemy -> sqlalchemy` emits SQL.
+- **Cross warehouse:** any other pair emits a Python engine script that uses the migration framework's connectors to read from the source and write to the target (e.g. `databricks -> snowflake`, `snowflake -> sql`, etc.).
+- **Medallion layers:** use qualified table names like `bronze.orders`, `silver.orders`, `gold.orders` or `catalog.schema.table` directly.
+
+Install the native drivers:
+
+```bash
+pip install "migration-framework[snowflake,databricks]"
+```
+
+Discover and generate a Snowpark load:
+
+```bash
+migrate --source snowflake:bronze.orders \
+  --target snowflake:silver.orders \
+  --source-connection '{"account":"...","user":"...","password":"...","database":"...","schema":"..."}' \
+  --target-connection '{"account":"...","user":"...","password":"...","database":"...","schema":"..."}' \
+  --job-name orders_demo --out orders_demo.yaml
+```
+
+## MCP server
+
+The package also exposes the framework as an MCP server:
+
+```bash
+pip install "migration-framework[mcp]"
+migrate-mcp
+```
+
+Tools include `discover`, `run_skill`, `run_workflow`, `migrate`, `list_skills`,
+and `list_connectors`.  See `mcp_configs/claude_desktop_config.json.example` for
+a sample Claude Desktop configuration that wires the migration-framework server
+together with Databricks and Snowflake MCP servers.
 
 ## Reusable skills and workflows
 

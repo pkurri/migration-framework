@@ -145,7 +145,9 @@ class CodegenSkill(Skill):
         if config is None:
             return SkillResult.failed("codegen skill requires a `config` input")
 
+        config_path = context.inputs.get("config_path")
         if isinstance(config, str):
+            config_path = config_path or config
             if not os.path.exists(config):
                 return SkillResult.failed(f"config file not found: {config}")
             try:
@@ -163,7 +165,7 @@ class CodegenSkill(Skill):
             return SkillResult.failed("config must be a path, dict, or MigrationConfig")
 
         try:
-            generated = generate_for(migration_config)
+            generated = generate_for(migration_config, config_path=config_path)
         except Exception as exc:  # noqa: BLE001
             return SkillResult.failed(f"code generation failed: {exc}")
 

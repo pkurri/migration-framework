@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "migration-framework": {
+      "command": "migrate-mcp",
+      "args": [],
+      "env": {}
+    },
+    "databricks": {
+      "command": "databricks-mcp",
+      "args": [],
+      "env": {
+        "DATABRICKS_HOST": "https://your-instance.cloud.databricks.com",
+        "DATABRICKS_TOKEN": "your-personal-access-token"
+      }
+    },
+    "snowflake": {
+      "command": "npx",
+      "args": ["-y", "@isaacwasserman/mcp-snowflake-server"],
+      "env": {
+        "SNOWFLAKE_ACCOUNT": "your-account",
+        "SNOWFLAKE_USER": "your-user",
+        "SNOWFLAKE_PASSWORD": "your-password",
+        "SNOWFLAKE_DATABASE": "your-db",
+        "SNOWFLAKE_SCHEMA": "your-schema",
+        "SNOWFLAKE_WAREHOUSE": "your-warehouse"
+      }
+    }
+  }
+}

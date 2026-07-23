@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "migration-framework"
-version = "0.1.0"
+version = "0.2.0"
 description = "A tool-agnostic framework for migrating data between any two systems."
 readme = "README.md"
 license = { text = "MIT" }
@@ -31,9 +31,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "build>=0.10"]
+snowflake = ["snowflake-connector-python>=4.0"]
+databricks = ["databricks-sql-connector>=4.0"]
+mcp = ["mcp>=1.0"]
 
 [project.scripts]
 migrate = "migration_framework.cli:main"
+migrate-mcp = "migration_framework.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["migration_framework*"]

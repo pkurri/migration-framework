@@ -11,6 +11,10 @@ from .base import CodeGenerator, GeneratedCode
 class PySparkGenerator(CodeGenerator):
     """Generate PySpark code for loading a source table into a target."""
 
+    def __init__(self) -> None:
+        self.source_connector: str | None = None
+        self.target_connector: str | None = None
+
     def generate(self, config: MigrationConfig) -> GeneratedCode:
         source = config.source
         target = config.target
@@ -38,18 +42,14 @@ class PySparkGenerator(CodeGenerator):
         audit_block = self._audit_code(config)
         audit_lines = "\n\n" + audit_block if audit_block else ""
 
+        read_expr = self._read_expr(config)
+
         body = textwrap.dedent(f"""\
             {import_expr}
 
             spark = SparkSession.builder.appName("{config.job_name}").getOrCreate()
 
-            df = (
-                spark.read
-                .format("jdbc")
-                .option("url", "<SOURCE_URL>")
-                .option("dbtable", "{source.table}")
-                .load()
-            )
+            {read_expr}
 
             projected = df.select(
                 {select_block}
@@ -67,6 +67,18 @@ class PySparkGenerator(CodeGenerator):
             """)
 
         return GeneratedCode(path=f"generated/{filename}", language="pyspark", body=body)
+
+    def _read_expr(self, config: MigrationConfig) -> str:
+        if self.source_connector and "databricks" in self.source_connector.lower():
+            return f'df = spark.read.format("delta").load("{config.source.table}")'
+        return textwrap.dedent(f'''\
+            df = (
+                spark.read
+                .format("jdbc")
+                .option("url", "<SOURCE_URL>")
+                .option("dbtable", "{config.source.table}")
+                .load()
+            )''')
 
     def _indent(self, text: str, width: int) -> str:
         return "\n".join(" " * width + line for line in text.splitlines())
