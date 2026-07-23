@@ -40,9 +40,29 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-This installs the `migrate` command plus SQLAlchemy and PyYAML - the whole
-runtime dependency list. Nothing here calls out to any AI service; the
-default agents are deterministic local reasoning and run fully offline.
+This installs the `migrate` command.  Core runtime dependencies are:
+
+- `SQLAlchemy>=2.0`
+- `PyYAML>=6.0`
+
+Optional extras add native connectors and the MCP server:
+
+| Extra | Installs | Use |
+| --- | --- | --- |
+| `snowflake` | `snowflake-connector-python>=4.0` | Native Snowflake source/target |
+| `databricks` | `databricks-sql-connector>=4.0` | Native Databricks source/target |
+| `pyspark` | `pyspark>=3.0` | Native PySpark/Delta source/target |
+| `mcp` | `mcp>=1.0` | `migrate-mcp` MCP server |
+| `dev` | `pytest`, `build` | Development and packaging tools |
+
+Install any combination you need, for example:
+
+```bash
+pip install "migration-framework[snowflake,databricks,pyspark,mcp]"
+```
+
+Nothing here calls out to any AI service; the default agents are deterministic
+local reasoning and run fully offline.
 
 ## Running it
 
