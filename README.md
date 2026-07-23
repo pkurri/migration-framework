@@ -331,6 +331,46 @@ result = skill().run(SkillContext(inputs={"config": "orders_demo.yaml"}))
 print(result.outputs["generated"]["path"])
 ```
 
+### Additional tool-agnostic skills
+
+These skills are adapted from agentic medallion patterns but work with any
+connector:
+
+- `profile` - profile any table through any connector, returning schema, row
+  count, nulls, distinct counts, and min/max.
+- `create-pull-request` - write generated files to a new git branch and open a
+  GitHub pull request for human review (HITL).
+- `test-generated` - run a generated code module against a generated `pytest`
+  suite in a temporary directory.
+
+Profile a table:
+
+```bash
+migrate skill profile \
+  --inputs '{
+    "connector": "sqlalchemy",
+    "connection": {"connection_url": "sqlite:///examples/source.db"},
+    "table": "legacy_orders"
+  }'
+```
+
+Create a pull request for generated load code:
+
+```bash
+migrate skill create-pull-request \
+  --inputs '{
+    "repo_path": ".",
+    "branch": "generated-load-orders",
+    "title": "Add generated load script for orders",
+    "files": [
+      {"path": "generated/orders_demo.py", "content": "..."}
+    ],
+    "github_token": "...",
+    "repo_owner": "...",
+    "repo_name": "..."
+  }'
+```
+
 ## Config reference
 
 ```yaml

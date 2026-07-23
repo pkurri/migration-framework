@@ -9,12 +9,19 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from pathlib import Path
 from typing import Any
 
 from ..agents import DiscoveryWorkflow, LocalMappingAgent, LocalVerifierAgent
 from ..agents.base import AgentContext
 from ..codegen import generate_for
 from ..config import AuditColumn, MigrationConfig
+from ..connectors.base import TableSchema
+from ..registry import build_connector
 from .base import Skill, SkillContext, SkillResult, register_skill
 from .workflow import Workflow, WorkflowStep
 
@@ -225,6 +232,221 @@ def migration_from_inputs(inputs: dict[str, Any], side: str):
         connection=inputs.get(f"{side}_connection", {}),
         table=inputs[f"{side}_table"],
     )
+
+
+def _column_profile(rows: list[dict[str, Any]], column: str, canonical_type: str) -> dict[str, Any]:
+    values = [r.get(column) for r in rows]
+    null_count = sum(1 for v in values if v is None)
+    non_null = [v for v in values if v is not None]
+
+    distinct: int | None = None
+    if non_null:
+        try:
+            distinct = len(set(non_null))
+        except TypeError:
+            distinct = len({str(v) for v in non_null})
+
+    profile: dict[str, Any] = {
+        "null_count": null_count,
+        "non_null_count": len(non_null),
+        "distinct_count": distinct,
+        "examples": non_null[:5],
+    }
+
+    if canonical_type in ("integer", "float") and non_null:
+        try:
+            nums = [float(v) for v in non_null]
+            profile["min"] = min(nums)
+            profile["max"] = max(nums)
+        except (TypeError, ValueError):
+            pass
+    elif canonical_type in ("date", "timestamp") and non_null:
+        import datetime
+
+        parsed: list[datetime.datetime | datetime.date] = []
+        for v in non_null:
+            if isinstance(v, (datetime.datetime, datetime.date)):
+                parsed.append(v)
+        if parsed:
+            profile["min"] = min(parsed).isoformat()
+            profile["max"] = max(parsed).isoformat()
+
+    return profile
+
+
+def _table_profile(schema: TableSchema, total_rows: int, sample_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    rows = sample_rows or schema.sample_rows or []
+    return {
+        "table": schema.name,
+        "total_rows": total_rows,
+        "sample_size": len(rows),
+        "columns": [
+            {
+                "name": col.name,
+                "canonical_type": col.canonical_type,
+                "native_type": col.native_type,
+                "nullable": col.nullable,
+                **_column_profile(rows, col.name, col.canonical_type),
+            }
+            for col in schema.columns
+        ],
+    }
+
+
+@register_skill
+class ProfileSkill(Skill):
+    """Profile a table through any Connector."""
+
+    name = "profile"
+    description = "Return schema, row count, and per-column statistics for any table."
+
+    def run(self, context: SkillContext) -> SkillResult:
+        inputs = context.inputs
+        try:
+            connector = build_connector(inputs["connector"], inputs.get("connection", {}))
+            table = inputs["table"]
+            sample_size = inputs.get("sample_size", 100)
+            schema = connector.get_schema(table, sample_size=sample_size)
+            total_rows = connector.row_count(table)
+            sample_rows = list(connector.read_rows(table)) if not schema.sample_rows else schema.sample_rows
+            if len(sample_rows) > sample_size:
+                sample_rows = sample_rows[:sample_size]
+            profile = _table_profile(schema, total_rows, sample_rows)
+        except Exception as exc:  # noqa: BLE001
+            return SkillResult.failed(f"profile failed: {exc}")
+
+        return SkillResult(
+            outputs={"profile": profile},
+            reasoning=[f"profiled {table}: {total_rows} rows, {len(schema.columns)} columns"],
+        )
+
+
+@register_skill
+class GitPullRequestSkill(Skill):
+    """Create a GitHub pull request from generated files using git and the GitHub API."""
+
+    name = "create-pull-request"
+    description = "Commit generated files to a new branch and open a GitHub pull request."
+
+    def run(self, context: SkillContext) -> SkillResult:
+        inputs = context.inputs
+        repo_path = inputs.get("repo_path", ".")
+        branch = inputs["branch"]
+        base_branch = inputs.get("base_branch", "main")
+        title = inputs["title"]
+        body = inputs.get("body", "")
+        files = inputs.get("files", [])
+        token = inputs.get("github_token") or os.environ.get("GITHUB_TOKEN")
+        owner = inputs.get("repo_owner") or os.environ.get("GITHUB_REPO_OWNER")
+        repo = inputs.get("repo_name") or os.environ.get("GITHUB_REPO_NAME")
+
+        if not token or not owner or not repo:
+            return SkillResult.failed(
+                "github_token, repo_owner, and repo_name are required (or set GITHUB_TOKEN, GITHUB_REPO_OWNER, GITHUB_REPO_NAME)"
+            )
+
+        repo_path = Path(repo_path)
+        if not (repo_path / ".git").exists():
+            return SkillResult.failed(f"{repo_path} is not a git repository")
+
+        def git(args: list[str]) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", *args],
+                cwd=str(repo_path),
+                capture_output=True,
+                text=True,
+            )
+
+        checkout = git(["checkout", "-b", branch])
+        if checkout.returncode != 0:
+            return SkillResult.failed(f"git checkout failed: {checkout.stderr}")
+
+        for file_info in files:
+            file_path = repo_path / file_info["path"]
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.write_text(file_info["content"])
+
+        add = git(["add", "-A"])
+        if add.returncode != 0:
+            return SkillResult.failed(f"git add failed: {add.stderr}")
+
+        commit = git(["commit", "-m", title, "--allow-empty"])
+        if commit.returncode != 0:
+            return SkillResult.failed(f"git commit failed: {commit.stderr}")
+
+        push = git(["push", "origin", branch])
+        if push.returncode != 0:
+            return SkillResult.failed(f"git push failed: {push.stderr}")
+
+        url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+        payload = json.dumps(
+            {
+                "title": title,
+                "body": body,
+                "head": branch,
+                "base": base_branch,
+            }
+        ).encode()
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req) as resp:
+                pr = json.loads(resp.read().decode())
+        except Exception as exc:  # noqa: BLE001
+            return SkillResult.failed(f"GitHub API call failed: {exc}")
+
+        return SkillResult(
+            outputs={"pr_url": pr.get("html_url"), "pr_number": pr.get("number")},
+            reasoning=[f"created pull request {pr.get('number')} at {pr.get('html_url')}"],
+        )
+
+
+@register_skill
+class PytestSkill(Skill):
+    """Run pytest against generated code and test files."""
+
+    name = "test-generated"
+    description = "Write generated code and pytest tests to temp files and run pytest."
+
+    def run(self, context: SkillContext) -> SkillResult:
+        inputs = context.inputs
+        code = inputs.get("code")
+        test_code = inputs.get("test_code")
+        if not code or not test_code:
+            return SkillResult.failed("both `code` and `test_code` are required")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            code_file = tmp / "generated_module.py"
+            test_file = tmp / "test_generated.py"
+            code_file.write_text(code)
+            test_file.write_text(test_code)
+
+            result = subprocess.run(
+                [sys.executable, "-m", "pytest", str(test_file), "-q", "--tb=short"],
+                cwd=str(tmp),
+                capture_output=True,
+                text=True,
+            )
+
+        return SkillResult(
+            outputs={
+                "returncode": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "passed": result.returncode == 0,
+            },
+            reasoning=["pytest run completed"],
+        )
 
 
 @register_skill
