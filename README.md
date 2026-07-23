@@ -177,6 +177,7 @@ flowchart TD
 | `connectors/base.py` | The `Connector` interface - `get_schema`, `read_rows`, `write_rows`, `row_count`. Anything that implements these four can be a source or a target. |
 | `connectors/sqlalchemy_connector.py` | One connector covering any SQLAlchemy-dialect database. This is what makes "any migration" true today without writing per-database code. |
 | `connectors/dbapi_connector.py` | Native connectors for Snowflake (`snowflake-connector-python`) and Databricks (`databricks-sql-connector`). Install with `pip install migration-framework[snowflake]` or `[databricks]`. |
+| `connectors/pyspark_connector.py` | Native PySpark connector for Spark/Delta tables. Install with `pip install migration-framework[pyspark]`. |
 | `registry.py` | Maps a `connector: <name>` string in config to a connector class. Add a new system by registering one class here. |
 | `agents/` | Agent-based discovery and mapping. `DiscoveryWorkflow` orchestrates `SourceSchemaAgent`, `TargetSchemaAgent`, `LocalMappingAgent`, and `LocalVerifierAgent`. |
 | `agents/mapping_agent.py` | `LocalMappingAgent` scores every (source column, target column) pair on name similarity, type compatibility, and sample-data shape; greedily assigns confident, unambiguous matches; flags the rest. Pure local reasoning, no external service. |

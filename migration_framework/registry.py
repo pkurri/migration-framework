@@ -11,12 +11,14 @@ from typing import Any
 
 from .connectors.base import Connector
 from .connectors.dbapi_connector import DatabricksConnector, SnowflakeConnector
+from .connectors.pyspark_connector import PySparkConnector
 from .connectors.sqlalchemy_connector import SQLAlchemyConnector
 
 CONNECTOR_REGISTRY: dict[str, type[Connector]] = {
     "sqlalchemy": SQLAlchemyConnector,
     "snowflake": SnowflakeConnector,
     "databricks": DatabricksConnector,
+    "pyspark": PySparkConnector,
 }
 
 
