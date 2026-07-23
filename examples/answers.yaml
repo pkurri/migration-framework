@@ -1,0 +1,8 @@
+# Answers for whatever `migrate discover` flags as unclear on the
+# legacy_orders -> orders_fact demo. One entry per flagged target column.
+is_cancelled:
+  derived:
+    when:
+      - condition: "STATUS_CD == 'X'"
+        then: "Y"
+    otherwise: "N"

@@ -1,0 +1,48 @@
+job_name: orders_demo
+source:
+  connector: sqlalchemy
+  connection:
+    connection_url: sqlite:///examples/source.db
+  table: legacy_orders
+  joins: []
+target:
+  connector: sqlalchemy
+  connection:
+    connection_url: sqlite:///examples/target.db
+  table: orders_fact
+  mode: append
+columns:
+- target: order_id
+  source: ORDER_ID
+  trim: false
+  matched_by: auto
+- target: order_date
+  source: ORDER_DT
+  trim: false
+  cast: date
+  matched_by: auto
+- target: customer_number
+  source: CUST_NUM
+  trim: false
+  matched_by: auto
+- target: amount
+  source: AMT
+  trim: false
+  cast: float
+  matched_by: auto
+- target: is_cancelled
+  trim: false
+  derived:
+    when:
+    - condition: STATUS_CD == 'X'
+      then: Y
+    otherwise: N
+  matched_by: human_defined
+audit_columns:
+- name: batch_id
+  generator: batch_id
+- name: etl_load_ts
+  generator: now
+validation:
+  expected_column_count: 7
+  reconcile_row_count: true

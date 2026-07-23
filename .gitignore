@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+*.whl
+*.tar.gz
+generated/
+examples/*.db
+examples/configs/*.yaml

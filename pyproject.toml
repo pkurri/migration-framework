@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "migration-framework"
+version = "0.1.0"
+description = "A tool-agnostic framework for migrating data between any two systems."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Migration Framework Contributors" },
+]
+keywords = ["migration", "etl", "data", "agent", "workflow"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "SQLAlchemy>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "build>=0.10"]
+
+[project.scripts]
+migrate = "migration_framework.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["migration_framework*"]
