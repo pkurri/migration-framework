@@ -44,6 +44,32 @@ This installs the `migrate` command plus SQLAlchemy and PyYAML - the whole
 runtime dependency list. Nothing here calls out to any AI service; the
 default agents are deterministic local reasoning and run fully offline.
 
+## Running it
+
+The same CLI drives every migration:
+
+```bash
+# 1. Discover the mapping and write a config
+migrate \
+  --source sqlalchemy:legacy_orders --source-connection '{"connection_url": "sqlite:///examples/source.db"}' \
+  --target sqlalchemy:orders_fact --target-connection '{"connection_url": "sqlite:///examples/target.db"}' \
+  --job-name orders_demo --out examples/orders_demo.yaml \
+  --audit-columns batch_id,etl_load_ts
+
+# 2. Run it (dry-run first, then for real)
+migrate run --config examples/orders_demo.yaml --dry-run
+migrate run --config examples/orders_demo.yaml
+```
+
+Run as an MCP server:
+
+```bash
+pip install "migration-framework[mcp]"
+migrate-mcp
+```
+
+See `mcp_configs/README.md` for Claude Desktop setup and more MCP examples.
+
 ## Quickstart
 
 Two throwaway SQLite databases stand in for "the legacy system" and "the new
